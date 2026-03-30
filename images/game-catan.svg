@@ -1,0 +1,47 @@
+<svg width="1200" height="800" viewBox="0 0 1200 800" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg2" x1="0" y1="0" x2="1200" y2="800" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0F172A"/>
+      <stop offset="1" stop-color="#1D4ED8"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="800" rx="40" fill="url(#bg2)"/>
+  <circle cx="1050" cy="140" r="180" fill="#F59E0B" fill-opacity="0.14"/>
+  <circle cx="160" cy="700" r="200" fill="#22C55E" fill-opacity="0.10"/>
+
+  <text x="70" y="110" fill="white" font-size="56" font-family="Arial, Helvetica, sans-serif" font-weight="700">Catan</text>
+  <text x="70" y="160" fill="#BFDBFE" font-size="28" font-family="Arial, Helvetica, sans-serif">Колония • ресурсы • стратегия</text>
+
+  <g transform="translate(600 120)">
+    <polygon points="150,40 240,92 240,196 150,248 60,196 60,92" fill="#F59E0B" fill-opacity="0.95"/>
+    <polygon points="60,92 150,40 150,-64 60,-12 -30,40 -30,144" fill="#22C55E" fill-opacity="0.95" transform="translate(0,104)"/>
+    <polygon points="240,92 330,40 420,92 420,196 330,248 240,196" fill="#60A5FA" fill-opacity="0.95"/>
+    <polygon points="150,248 240,196 330,248 330,352 240,404 150,352" fill="#94A3B8" fill-opacity="0.95"/>
+    <polygon points="-30,40 60,-12 150,40 150,144 60,196 -30,144" fill="#A3E635" fill-opacity="0.90"/>
+
+    <circle cx="150" cy="144" r="38" fill="white"/>
+    <text x="132" y="157" fill="#111827" font-size="32" font-family="Arial, Helvetica, sans-serif" font-weight="700">8</text>
+
+    <circle cx="330" cy="144" r="38" fill="white"/>
+    <text x="312" y="157" fill="#111827" font-size="32" font-family="Arial, Helvetica, sans-serif" font-weight="700">6</text>
+
+    <circle cx="240" cy="300" r="38" fill="white"/>
+    <text x="222" y="313" fill="#111827" font-size="32" font-family="Arial, Helvetica, sans-serif" font-weight="700">5</text>
+
+    <circle cx="60" cy="92" r="12" fill="white"/>
+    <circle cx="150" cy="40" r="12" fill="white"/>
+    <circle cx="240" cy="92" r="12" fill="white"/>
+    <circle cx="240" cy="196" r="12" fill="white"/>
+    <circle cx="150" cy="248" r="12" fill="white"/>
+    <circle cx="60" cy="196" r="12" fill="white"/>
+
+    <rect x="36" y="168" width="48" height="36" rx="8" fill="#1E3A8A"/>
+    <rect x="126" y="16" width="48" height="36" rx="8" fill="#1E3A8A"/>
+    <rect x="308" y="220" width="48" height="36" rx="8" fill="#1E3A8A"/>
+  </g>
+
+  <rect x="70" y="560" width="470" height="130" rx="28" fill="white" fill-opacity="0.07" stroke="white" stroke-opacity="0.14"/>
+  <text x="105" y="615" fill="white" font-size="32" font-family="Arial, Helvetica, sans-serif" font-weight="700">Строй и захватывай лучшие точки</text>
+  <text x="105" y="658" fill="#CBD5E1" font-size="22" font-family="Arial, Helvetica, sans-serif">Дороги, дома и выгодные ресурсы</text>
+</svg>

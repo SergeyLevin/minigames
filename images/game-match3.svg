@@ -1,0 +1,37 @@
+<svg width="1200" height="800" viewBox="0 0 1200 800" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg3" x1="0" y1="0" x2="1200" y2="800" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#111827"/>
+      <stop offset="1" stop-color="#312E81"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="800" rx="40" fill="url(#bg3)"/>
+  <circle cx="1080" cy="120" r="170" fill="#EC4899" fill-opacity="0.14"/>
+  <circle cx="120" cy="700" r="180" fill="#22C55E" fill-opacity="0.10"/>
+
+  <text x="70" y="110" fill="white" font-size="56" font-family="Arial, Helvetica, sans-serif" font-weight="700">Match-3</text>
+  <text x="70" y="160" fill="#C4B5FD" font-size="28" font-family="Arial, Helvetica, sans-serif">Комбо • кристаллы • скорость</text>
+
+  <rect x="700" y="120" width="360" height="360" rx="30" fill="white" fill-opacity="0.08" stroke="white" stroke-opacity="0.14"/>
+
+  <rect x="740" y="160" width="80" height="80" rx="20" fill="#22C55E"/>
+  <rect x="840" y="160" width="80" height="80" rx="20" fill="#F59E0B"/>
+  <rect x="940" y="160" width="80" height="80" rx="20" fill="#EC4899"/>
+
+  <rect x="740" y="260" width="80" height="80" rx="20" fill="#60A5FA"/>
+  <rect x="840" y="260" width="80" height="80" rx="20" fill="#EC4899"/>
+  <rect x="940" y="260" width="80" height="80" rx="20" fill="#22C55E"/>
+
+  <rect x="740" y="360" width="80" height="80" rx="20" fill="#F59E0B"/>
+  <rect x="840" y="360" width="80" height="80" rx="20" fill="#A78BFA"/>
+  <rect x="940" y="360" width="80" height="80" rx="20" fill="#60A5FA"/>
+
+  <path d="M180 500 L320 500" stroke="white" stroke-width="16" stroke-linecap="round"/>
+  <path d="M300 476 L338 500 L300 524" stroke="white" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <rect x="70" y="320" width="500" height="220" rx="28" fill="white" fill-opacity="0.06" stroke="white" stroke-opacity="0.12"/>
+  <text x="105" y="390" fill="white" font-size="36" font-family="Arial, Helvetica, sans-serif" font-weight="700">Собирай комбинации</text>
+  <text x="105" y="440" fill="#DDD6FE" font-size="24" font-family="Arial, Helvetica, sans-serif">Быстрые свайпы, яркие комбо и кристаллы</text>
+  <text x="105" y="495" fill="#A78BFA" font-size="26" font-family="Arial, Helvetica, sans-serif" font-weight="700">3 в ряд = старт. Больше = кайф.</text>
+</svg>
