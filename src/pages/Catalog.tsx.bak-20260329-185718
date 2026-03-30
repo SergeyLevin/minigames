@@ -35,46 +35,6 @@ const GAMES = [
     difficulty: 'Легко',
     duration: '2-3 мин',
     isVsBot: false
-  },
-  {
-    id: 'findpair',
-    title: 'Найди пару',
-    description: 'Тренируй память: открывай карточки и находи одинаковые пары.',
-    image: 'https://picsum.photos/seed/memory/400/200',
-    reward: 'До 150 💎',
-    difficulty: '3 уровня',
-    duration: '2-6 мин',
-    isVsBot: false
-  },
-  {
-    id: 'stack',
-    title: 'Stack Tower',
-    description: 'Построй самую высокую башню! Точность — залог успеха.',
-    image: 'https://picsum.photos/seed/stack/400/200',
-    reward: 'До 200 💎',
-    difficulty: 'Реакция',
-    duration: '1-3 мин',
-    isVsBot: false
-  },
-  {
-    id: 'crash',
-    title: 'Crash',
-    description: 'Успей забрать кристаллы до того, как всё рухнет!',
-    image: 'https://picsum.photos/seed/crash/400/200',
-    reward: 'До 15x 💎',
-    difficulty: 'Азарт',
-    duration: '10-30 сек',
-    isVsBot: false
-  },
-  {
-    id: 'brickbreaker',
-    title: 'Brick Breaker',
-    description: 'Расслабляющий арканоид: разбивай блоки и лови бонусы.',
-    image: 'https://picsum.photos/seed/brick/400/200',
-    reward: 'До 60 💎',
-    difficulty: 'Легко',
-    duration: '2-5 мин',
-    isVsBot: false
   }
 ];
 

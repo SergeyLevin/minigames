@@ -26,6 +26,7 @@ import { motion, AnimatePresence } from 'motion/react';
 // --- Types & Constants ---
 
 type ResourceType = 'wood' | 'brick' | 'wool' | 'grain' | 'ore' | 'desert';
+type GameMode = 'tutorial' | 'normal';
 
 interface ResourceSet {
   wood: number;
@@ -57,6 +58,119 @@ interface Edge {
   owner: string | null;
 }
 
+interface TutorialStep {
+  id: number;
+  type: 'info' | 'action' | 'mixed' | 'victory';
+  title: string;
+  text: string;
+  reason?: string;
+  targetType?: 'button' | 'hex' | 'vertex' | 'edge';
+  targetId?: string | number;
+  allowedActions?: string[];
+  successCondition?: (state: any) => boolean;
+  benefit?: string;
+}
+
+const TUTORIAL_STEPS: TutorialStep[] = [
+  { 
+    id: 1,
+    type: 'info', 
+    title: "Добро пожаловать!", 
+    text: "Это остров Катан. Гексы дают ресурсы, когда выпадают их числа. Ваша цель — набрать 10 очков.",
+    reason: "Понимание цели игры поможет вам строить правильную стратегию."
+  },
+  { 
+    id: 2,
+    type: 'action', 
+    title: "Бросок кубиков", 
+    text: "Нажмите кнопку 'Бросить кубики' внизу, чтобы начать ход и получить ресурсы.",
+    reason: "Каждый ход начинается с броска. Числа на кубиках определяют, какие клетки принесут доход.",
+    targetType: 'button',
+    targetId: 'roll',
+    allowedActions: ['roll']
+  },
+  { 
+    id: 3,
+    type: 'info', 
+    title: "Ресурсы получены!", 
+    text: "Выпало 6. Ваши поселения рядом с лесом (6) принесли вам дерево. Ресурсы отображаются внизу.",
+    reason: "Дерево и кирпич — основа для строительства дорог и домов."
+  },
+  { 
+    id: 4,
+    type: 'action', 
+    title: "Строительство дороги", 
+    text: "Для расширения нужны дороги. Нажмите на кнопку 'Дорога'.",
+    reason: "Дороги позволяют дотянуться до новых выгодных участков острова.",
+    targetType: 'button',
+    targetId: 'road',
+    allowedActions: ['select_road']
+  },
+  { 
+    id: 5,
+    type: 'action', 
+    title: "Размещение дороги", 
+    text: "Теперь выберите подсвеченную линию на поле, чтобы проложить путь.",
+    reason: "Мы строим дорогу в сторону кирпичного карьера, чтобы сбалансировать добычу.",
+    targetType: 'edge',
+    targetId: '7-1', // hex 7, edge 1
+    benefit: "Путь к кирпичу",
+    allowedActions: ['build_road']
+  },
+  { 
+    id: 6,
+    type: 'action', 
+    title: "Новое поселение", 
+    text: "Поселения дают очки и ресурсы. Нажмите на кнопку 'Дом'.",
+    reason: "Каждое новое поселение — это +1 победное очко и больше ресурсов каждый ход.",
+    targetType: 'button',
+    targetId: 'settlement',
+    allowedActions: ['select_settlement']
+  },
+  { 
+    id: 7,
+    type: 'action', 
+    title: "Строим дом", 
+    text: "Выберите подсвеченную точку на конце вашей новой дороги.",
+    reason: "Эта точка находится на стыке леса и холмов — идеальное место для развития.",
+    targetType: 'vertex',
+    targetId: '7-1', // hex 7, pos 1
+    benefit: "+1 Очко",
+    allowedActions: ['build_settlement']
+  },
+  { 
+    id: 8,
+    type: 'info', 
+    title: "Отличная работа!", 
+    text: "Вы получили +1 победное очко! Теперь у вас 3 очка. Чем больше домов, тем больше ресурсов вы будете получать.",
+    reason: "Вы успешно расширили свои владения и стали на шаг ближе к победе."
+  },
+  { 
+    id: 9,
+    type: 'action', 
+    title: "Завершение хода", 
+    text: "Нажмите 'Конец', чтобы передать ход. В обучении боты ходят быстро.",
+    reason: "Передача хода позволяет другим игрокам попытать удачу, пока вы планируете следующий шаг.",
+    targetType: 'button',
+    targetId: 'end_turn',
+    allowedActions: ['end_turn']
+  },
+  { 
+    id: 10,
+    type: 'info', 
+    title: "Путь к победе", 
+    text: "Продолжайте строить! Мы добавили вам ресурсов, чтобы вы могли сразу построить еще один дом и победить в этом обучении.",
+    reason: "В реальной игре вам пришлось бы ждать бросков, но сейчас мы ускорим ваш триумф."
+  },
+  { 
+    id: 11,
+    type: 'victory', 
+    title: "Вы победили!", 
+    text: "Вы освоили основы Катана. Теперь вы готовы к настоящей игре против сильных противников!",
+    reason: "Вы доказали, что понимаете основы экономики и строительства на острове."
+  },
+];
+
 const RESOURCE_CONFIG: Record<ResourceType, { color: string; icon: any; label: string }> = {
   wood: { color: 'bg-emerald-600', icon: <TreePine className="w-4 h-4" />, label: 'Дерево' },
   brick: { color: 'bg-orange-700', icon: <BrickWall className="w-4 h-4" />, label: 'Кирпич' },
@@ -73,6 +187,31 @@ const COSTS = {
 };
 
 // --- Board Generation Helpers ---
+
+const generateTutorialBoard = () => {
+  const hexes: Hex[] = [
+    { id: 0, q: 0, r: -2, resource: 'wood', number: 10 },
+    { id: 1, q: 1, r: -2, resource: 'wool', number: 2 },
+    { id: 2, q: 2, r: -2, resource: 'grain', number: 9 },
+    { id: 3, q: -1, r: -1, resource: 'brick', number: 11 },
+    { id: 4, q: 0, r: -1, resource: 'ore', number: 3 },
+    { id: 5, q: 1, r: -1, resource: 'grain', number: 8 },
+    { id: 6, q: 2, r: -1, resource: 'wood', number: 4 },
+    { id: 7, q: -2, r: 0, resource: 'brick', number: 5 },
+    { id: 8, q: -1, r: 0, resource: 'grain', number: 6 },
+    { id: 9, q: 0, r: 0, resource: 'desert', number: 0 },
+    { id: 10, q: 1, r: 0, resource: 'wool', number: 10 },
+    { id: 11, q: 2, r: 0, resource: 'ore', number: 5 },
+    { id: 12, q: -2, r: 1, resource: 'wool', number: 9 },
+    { id: 13, q: -1, r: 1, resource: 'wood', number: 12 },
+    { id: 14, q: 0, r: 1, resource: 'brick', number: 6 },
+    { id: 15, q: 1, r: 1, resource: 'wool', number: 4 },
+    { id: 16, q: -2, r: 2, resource: 'grain', number: 8 },
+    { id: 17, q: -1, r: 2, resource: 'ore', number: 11 },
+    { id: 18, q: 0, r: 2, resource: 'wood', number: 3 },
+  ];
+  return hexes;
+};
 
 const generateBoard = () => {
   const hexes: Hex[] = [];
@@ -132,12 +271,13 @@ const getHexVertices = (q: number, r: number) => {
 export const CatanGame = ({ onUpdate, onMove, onEnd }: { onUpdate: (s: number) => void, onMove: () => void, onEnd: (s: number, m: number, v: boolean, q: number) => void }) => {
   // Game State
   const [showStartScreen, setShowStartScreen] = useState(true);
-  const [isTutorial, setIsTutorial] = useState(false);
+  const [gameMode, setGameMode] = useState<GameMode | null>(null);
   const [tutorialStep, setTutorialStep] = useState(0);
+  const [tutorialActionCompleted, setTutorialActionCompleted] = useState(false);
   const [activeAction, setActiveAction] = useState<'road' | 'settlement' | 'city' | null>(null);
   const [hoveredHex, setHoveredHex] = useState<number | null>(null);
 
-  const [hexes] = useState<Hex[]>(generateBoard());
+  const [hexes, setHexes] = useState<Hex[]>(generateBoard());
   const [playerResources, setPlayerResources] = useState<ResourceSet>({ wood: 2, brick: 2, wool: 1, grain: 1, ore: 0 });
   const [bot1Resources, setBot1Resources] = useState<ResourceSet>({ wood: 2, brick: 2, wool: 1, grain: 1, ore: 0 });
   const [bot2Resources, setBot2Resources] = useState<ResourceSet>({ wood: 2, brick: 2, wool: 1, grain: 1, ore: 0 });
@@ -157,6 +297,42 @@ export const CatanGame = ({ onUpdate, onMove, onEnd }: { onUpdate: (s: number) =
   const [showHelp, setShowHelp] = useState(false);
   const [floatingTexts, setFloatingTexts] = useState<{id: number, text: string, x: number, y: number, color: string}[]>([]);
   const nextFloatingId = useRef(0);
+
+  const isTutorial = gameMode === 'tutorial';
+  const currentTutorialStep = isTutorial ? TUTORIAL_STEPS[tutorialStep - 1] : null;
+
+  const boardBounds = useMemo(() => {
+    const size = 40;
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+
+    hexes.forEach(hex => {
+      const x = size * (3/2 * hex.q) + 150;
+      const y = size * (Math.sqrt(3)/2 * hex.q + Math.sqrt(3) * hex.r) + 150;
+      
+      for (let i = 0; i < 6; i++) {
+        const angle = (i * 60) * (Math.PI / 180);
+        const cx = x + size * Math.cos(angle);
+        const cy = y + size * Math.sin(angle);
+        minX = Math.min(minX, cx);
+        maxX = Math.max(maxX, cx);
+        minY = Math.min(minY, cy);
+        maxY = Math.max(maxY, cy);
+      }
+    });
+
+    const width = maxX - minX;
+    const height = maxY - minY;
+    const padding = 24;
+
+    return {
+      viewBox: `${minX - padding} ${minY - padding} ${width + padding * 2} ${height + padding * 2}`,
+      centerX: minX + width / 2,
+      centerY: minY + height / 2
+    };
+  }, [hexes]);
 
   const addFloatingText = (text: string, x: number, y: number, color: string = 'text-emerald-500') => {
     const id = nextFloatingId.current++;
@@ -191,35 +367,93 @@ export const CatanGame = ({ onUpdate, onMove, onEnd }: { onUpdate: (s: number) =
   };
 
   const startNormalGame = () => {
+    setHexes(generateBoard());
     setShowStartScreen(false);
-    setIsTutorial(false);
+    setGameMode('normal');
     setGameState('rolling');
-    addLog('Игра началась! Удачи.');
+    setCurrentPlayer('player');
+    setTurn(1);
+    setPlayerVP(2);
+    setBot1VP(2);
+    setBot2VP(2);
+    setPlayerResources({ wood: 2, brick: 2, wool: 1, grain: 1, ore: 0 });
+    setBot1Resources({ wood: 2, brick: 2, wool: 1, grain: 1, ore: 0 });
+    setBot2Resources({ wood: 2, brick: 2, wool: 1, grain: 1, ore: 0 });
+    setBuildings([
+      { hexId: 7, pos: 0, type: 'settlement', owner: 'player' },
+      { hexId: 11, pos: 3, type: 'settlement', owner: 'player' },
+      { hexId: 2, pos: 0, type: 'settlement', owner: 'bot1' },
+      { hexId: 5, pos: 3, type: 'settlement', owner: 'bot1' },
+      { hexId: 15, pos: 0, type: 'settlement', owner: 'bot2' },
+      { hexId: 18, pos: 3, type: 'settlement', owner: 'bot2' },
+    ]);
+    setRoads([
+      { hexId: 7, edge: 0, owner: 'player' },
+      { hexId: 11, edge: 3, owner: 'player' },
+    ]);
+    setLog(['Игра началась! Удачи.']);
+    setActiveAction(null);
+    setShowTrade(false);
+    setShowHelp(false);
   };
 
   const startTutorial = () => {
+    setHexes(generateTutorialBoard());
     setShowStartScreen(false);
-    setIsTutorial(true);
+    setGameMode('tutorial');
     setTutorialStep(1);
-    setGameState('playing');
-    // Give specific resources for tutorial to ensure a smooth guided path
+    setTutorialActionCompleted(false);
+    setGameState('rolling');
+    setCurrentPlayer('player');
+    setTurn(1);
+    setPlayerVP(2);
+    setBot1VP(2);
+    setBot2VP(2);
     setPlayerResources({ wood: 2, brick: 2, wool: 1, grain: 1, ore: 0 });
-    addLog('Режим обучения активирован');
+    setBot1Resources({ wood: 2, brick: 2, wool: 1, grain: 1, ore: 0 });
+    setBot2Resources({ wood: 2, brick: 2, wool: 1, grain: 1, ore: 0 });
+    setBuildings([
+      { hexId: 7, pos: 0, type: 'settlement', owner: 'player' },
+      { hexId: 11, pos: 3, type: 'settlement', owner: 'player' },
+      { hexId: 2, pos: 0, type: 'settlement', owner: 'bot1' },
+      { hexId: 5, pos: 3, type: 'settlement', owner: 'bot1' },
+      { hexId: 15, pos: 0, type: 'settlement', owner: 'bot2' },
+      { hexId: 18, pos: 3, type: 'settlement', owner: 'bot2' },
+    ]);
+    setRoads([
+      { hexId: 7, edge: 0, owner: 'player' },
+      { hexId: 11, edge: 3, owner: 'player' },
+    ]);
+    setLog(['Режим обучения активирован']);
+    setActiveAction(null);
+    setShowTrade(false);
+    setShowHelp(false);
   };
 
   const rollDice = () => {
     if (gameState !== 'rolling') return;
-    if (isTutorial && tutorialStep !== 2) {
-      addLog('Сначала прочитайте подсказку!');
-      return;
+    
+    // Tutorial restriction
+    if (isTutorial) {
+      if (currentTutorialStep?.allowedActions && !currentTutorialStep.allowedActions.includes('roll')) {
+        addLog('Следуйте инструкциям обучения!');
+        return;
+      }
+    }
+    
+    // Tutorial Scripted Dice
+    let d1, d2;
+    if (isTutorial && tutorialStep === 2) {
+      d1 = 3; d2 = 3; // 6
+    } else {
+      d1 = Math.floor(Math.random() * 6) + 1;
+      d2 = Math.floor(Math.random() * 6) + 1;
     }
 
     // Tension delay
-    setGameState('rolling'); // Ensure we stay in rolling state visually
+    setGameState('rolling'); 
     
     setTimeout(() => {
-      const d1 = Math.floor(Math.random() * 6) + 1;
-      const d2 = Math.floor(Math.random() * 6) + 1;
       const total = d1 + d2;
       setDice([d1, d2]);
       addLog(`Выпало: ${total}`);
@@ -230,13 +464,14 @@ export const CatanGame = ({ onUpdate, onMove, onEnd }: { onUpdate: (s: number) =
         setGameState('robber');
       } else {
         distributeResources(total);
+        addFloatingText(`Выпало ${total}`, boardBounds.centerX, boardBounds.centerY, 'text-slate-900 font-black');
         setGameState('playing');
       }
 
       if (isTutorial && tutorialStep === 2) {
-        setTutorialStep(3);
+        setTutorialActionCompleted(true);
       }
-    }, 400); // 0.4s tension
+    }, 400); 
   };
 
   const distributeResources = (roll: number) => {
@@ -267,7 +502,7 @@ export const CatanGame = ({ onUpdate, onMove, onEnd }: { onUpdate: (s: number) =
         Object.entries(gains.player).forEach(([res, amt]) => {
           next[res as keyof ResourceSet] += amt!;
           // Add floating text for each resource gained
-          addFloatingText(`+${amt} ${RESOURCE_CONFIG[res as ResourceType].label}`, 150, 150, 'text-emerald-500');
+          addFloatingText(`+${amt} ${RESOURCE_CONFIG[res as ResourceType].label}`, boardBounds.centerX, boardBounds.centerY, 'text-emerald-500');
         });
         return next;
       });
@@ -301,9 +536,21 @@ export const CatanGame = ({ onUpdate, onMove, onEnd }: { onUpdate: (s: number) =
 
   const buildSettlement = (hexId: number, pos: number) => {
     if (gameState !== 'playing' || currentPlayer !== 'player') return;
-    if (isTutorial && tutorialStep !== 6) {
-      addLog('Сейчас нужно построить поселение!');
-      return;
+    
+    // Tutorial restriction
+    if (isTutorial) {
+      if (currentTutorialStep?.allowedActions && !currentTutorialStep.allowedActions.includes('build_settlement')) {
+        addLog('Следуйте инструкциям обучения!');
+        return;
+      }
+      
+      if (tutorialStep === 7) {
+        // Only allow specific spot in tutorial
+        if (hexId !== 7 || pos !== 1) {
+          addLog('Постройте поселение в подсвеченном месте!');
+          return;
+        }
+      }
     }
     
     // Check resources
@@ -327,7 +574,7 @@ export const CatanGame = ({ onUpdate, onMove, onEnd }: { onUpdate: (s: number) =
     }));
 
     setBuildings(prev => [...prev, { hexId, pos, type: 'settlement', owner: 'player' }]);
-    addFloatingText('+1 Очко!', 150, 100, 'text-amber-500 font-black');
+    addFloatingText('+1 Очко!', boardBounds.centerX, boardBounds.centerY - 50, 'text-amber-500 font-black');
     
     setPlayerVP(v => {
       const newVP = v + 1;
@@ -349,7 +596,7 @@ export const CatanGame = ({ onUpdate, onMove, onEnd }: { onUpdate: (s: number) =
     setActiveAction(null);
 
     if (isTutorial && tutorialStep === 7) {
-      setTutorialStep(8);
+      setTutorialActionCompleted(true);
     }
   };
 
@@ -372,7 +619,7 @@ export const CatanGame = ({ onUpdate, onMove, onEnd }: { onUpdate: (s: number) =
     }));
 
     setBuildings(prev => prev.map(b => (b.hexId === hexId && b.pos === pos) ? { ...b, type: 'city' } : b));
-    addFloatingText('+1 Очко!', 150, 100, 'text-amber-500 font-black');
+    addFloatingText('+1 Очко!', boardBounds.centerX, boardBounds.centerY - 50, 'text-amber-500 font-black');
 
     setPlayerVP(v => {
       const newVP = v + 1;
@@ -396,9 +643,20 @@ export const CatanGame = ({ onUpdate, onMove, onEnd }: { onUpdate: (s: number) =
 
   const buildRoad = (hexId: number, edge: number) => {
     if (gameState !== 'playing' || currentPlayer !== 'player') return;
-    if (isTutorial && tutorialStep !== 5) {
-      addLog('Сейчас нужно построить дорогу!');
-      return;
+    
+    if (isTutorial) {
+      if (currentTutorialStep?.allowedActions && !currentTutorialStep.allowedActions.includes('build_road')) {
+        addLog('Следуйте инструкциям обучения!');
+        return;
+      }
+
+      if (tutorialStep === 5) {
+        // Only allow specific spot in tutorial
+        if (hexId !== 7 || edge !== 1) {
+          addLog('Постройте дорогу в подсвеченном месте!');
+          return;
+        }
+      }
     }
 
     if (playerResources.wood < 1 || playerResources.brick < 1) {
@@ -418,13 +676,13 @@ export const CatanGame = ({ onUpdate, onMove, onEnd }: { onUpdate: (s: number) =
     }));
 
     setRoads(prev => [...prev, { hexId, edge, owner: 'player' }]);
-    addFloatingText('+Путь', 150, 150, 'text-blue-500');
+    addFloatingText('+Путь', boardBounds.centerX, boardBounds.centerY, 'text-blue-500');
     addLog('Дорога построена');
     onMove();
     setActiveAction(null);
 
     if (isTutorial && tutorialStep === 5) {
-      setTutorialStep(6);
+      setTutorialActionCompleted(true);
     }
   };
 
@@ -434,18 +692,39 @@ export const CatanGame = ({ onUpdate, onMove, onEnd }: { onUpdate: (s: number) =
       return;
     }
 
-    if (isTutorial && tutorialStep < 8) return;
+    if (isTutorial) {
+      if (currentTutorialStep?.allowedActions && !currentTutorialStep.allowedActions.includes('end_turn')) {
+        addLog('Следуйте инструкциям обучения!');
+        return;
+      }
+
+      if (tutorialStep === 9) {
+        setTutorialActionCompleted(true);
+        // Give bonus resources to ensure victory
+        setPlayerResources(prev => ({
+          wood: prev.wood + 10,
+          brick: prev.brick + 10,
+          wool: prev.wool + 10,
+          grain: prev.grain + 10,
+          ore: prev.ore + 10
+        }));
+        addLog('Вы получили ресурсы для финального рывка!');
+      }
+    }
 
     setCurrentPlayer('bot1');
     setGameState('bot_turn');
     onMove();
+  };
 
-    if (isTutorial && tutorialStep === 8) {
-      setIsTutorial(false);
+  useEffect(() => {
+    if (isTutorial && tutorialStep === 12) {
+      setGameMode('normal');
       setTutorialStep(0);
+      setTutorialActionCompleted(false);
       addLog('Обучение завершено! Теперь играйте сами.');
     }
-  };
+  }, [tutorialStep, isTutorial]);
 
   // --- Bot AI ---
 
@@ -470,6 +749,7 @@ export const CatanGame = ({ onUpdate, onMove, onEnd }: { onUpdate: (s: number) =
           addLog(`${botId === 'bot1' ? 'Бот 1' : 'Бот 2'} переместил разбойника`);
         } else {
           distributeResources(total);
+          addFloatingText(`Выпало ${total}`, boardBounds.centerX, boardBounds.centerY, 'text-slate-900 font-black');
         }
 
         // 2. Simple Logic
@@ -574,8 +854,20 @@ export const CatanGame = ({ onUpdate, onMove, onEnd }: { onUpdate: (s: number) =
         {/* Roads & Edge Interaction */}
         {[0, 1, 2, 3, 4, 5].map(edge => {
           const r = roads.find(r => r.hexId === hex.id && r.edge === edge);
-          const isHighlight = activeAction === 'road' && !r;
+          let isHighlight = activeAction === 'road' && !r;
+          let showCallout = false;
           
+          // Tutorial specific highlight
+          if (isTutorial) {
+            if (currentTutorialStep?.targetType === 'edge' && currentTutorialStep.targetId === `${hex.id}-${edge}`) {
+              isHighlight = true;
+              showCallout = true;
+            } else if (activeAction === 'road') {
+              // In tutorial, only highlight the target edge
+              isHighlight = false;
+            }
+          }
+
           // Edge positioning
           const angle = (edge * 60 - 30) * (Math.PI / 180);
           const rx = Math.cos(angle) * 34.6;
@@ -614,6 +906,14 @@ export const CatanGame = ({ onUpdate, onMove, onEnd }: { onUpdate: (s: number) =
                   className="animate-pulse cursor-pointer"
                 />
               )}
+              {showCallout && currentTutorialStep?.benefit && (
+                <g transform={`translate(${rx/2}, ${ry/2})`}>
+                  <motion.g initial={{ scale: 0 }} animate={{ scale: 1 }}>
+                    <path d="M0,0 L10,-10 L40,-10 L40,-25 L-40,-25 L-40,-10 L-10,-10 Z" fill="#2563eb" className="shadow-lg" />
+                    <text y="-15" textAnchor="middle" className="fill-white text-[5px] font-black uppercase">{currentTutorialStep.benefit}</text>
+                  </motion.g>
+                </g>
+              )}
             </g>
           );
         })}
@@ -621,8 +921,20 @@ export const CatanGame = ({ onUpdate, onMove, onEnd }: { onUpdate: (s: number) =
         {/* Simplified Building Spots (Vertices) */}
         {[0, 1, 2, 3, 4, 5].map(pos => {
           const b = buildings.find(b => b.hexId === hex.id && b.pos === pos);
-          const isHighlight = (activeAction === 'settlement' && !b) || (activeAction === 'city' && b?.owner === 'player' && b?.type === 'settlement');
+          let isHighlight = (activeAction === 'settlement' && !b) || (activeAction === 'city' && b?.owner === 'player' && b?.type === 'settlement');
+          let showCallout = false;
           
+          // Tutorial specific highlight
+          if (isTutorial) {
+            if (currentTutorialStep?.targetType === 'vertex' && currentTutorialStep.targetId === `${hex.id}-${pos}`) {
+              isHighlight = true;
+              showCallout = true;
+            } else if (activeAction === 'settlement' || activeAction === 'city') {
+              // In tutorial, only highlight the target vertex
+              isHighlight = false;
+            }
+          }
+
           const angle = (pos * 60 - 90) * (Math.PI / 180);
           const vx = Math.cos(angle) * 40;
           const vy = Math.sin(angle) * 40;
@@ -639,6 +951,15 @@ export const CatanGame = ({ onUpdate, onMove, onEnd }: { onUpdate: (s: number) =
               />
               {b?.type === 'city' && <Building2 className="w-3 h-3 text-white -translate-x-1.5 -translate-y-1.5 pointer-events-none" />}
               {b?.type === 'settlement' && <Home className="w-3 h-3 text-white -translate-x-1.5 -translate-y-1.5 pointer-events-none" />}
+              
+              {showCallout && currentTutorialStep?.benefit && (
+                <g transform="translate(0, -15)">
+                  <motion.g initial={{ scale: 0 }} animate={{ scale: 1 }}>
+                    <path d="M0,0 L5,-5 L25,-5 L25,-15 L-25,-15 L-25,-5 L-5,-5 Z" fill="#fbbf24" />
+                    <text y="-8" textAnchor="middle" className="fill-slate-900 text-[5px] font-black uppercase">{currentTutorialStep.benefit}</text>
+                  </motion.g>
+                </g>
+              )}
             </g>
           );
         })}
@@ -712,12 +1033,14 @@ export const CatanGame = ({ onUpdate, onMove, onEnd }: { onUpdate: (s: number) =
                 )}
               </div>
               <h1 className="text-5xl font-black mb-2 uppercase tracking-tighter">
-                {winner === 'player' ? '🎉 Победа!' : 'Почти получилось!'}
+                {isTutorial ? '🎉 Первая победа!' : (winner === 'player' ? '🎉 Победа!' : 'Почти получилось!')}
               </h1>
               <p className="text-blue-100 text-lg font-medium">
-                {winner === 'player' 
-                  ? 'Вы — величайший правитель Катана! Вырвались из крысиных бегов!' 
-                  : `Бот был чуть быстрее в этот раз. Вы были всего в ${10 - playerVP} шагах от триумфа!`}
+                {isTutorial 
+                  ? 'Вы освоили основы! Теперь попробуйте победить без подсказок.'
+                  : (winner === 'player' 
+                    ? 'Вы — величайший правитель Катана! Вырвались из крысиных бегов!' 
+                    : `Бот был чуть быстрее в этот раз. Вы были всего в ${10 - playerVP} шагах от триумфа!`)}
               </p>
             </motion.div>
             
@@ -725,13 +1048,23 @@ export const CatanGame = ({ onUpdate, onMove, onEnd }: { onUpdate: (s: number) =
               onClick={() => window.location.reload()}
               className="px-12 py-4 bg-white text-blue-600 rounded-2xl font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all"
             >
-              Играть снова
+              {isTutorial ? 'Играть самому' : 'Играть снова'}
             </button>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {isTutorial && <TutorialOverlay step={tutorialStep} onNext={() => setTutorialStep(prev => prev + 1)} onSkip={() => setIsTutorial(false)} />}
+      {isTutorial && gameState !== 'victory' && (
+        <TutorialOverlay 
+          step={tutorialStep} 
+          canProceed={tutorialActionCompleted}
+          onNext={() => {
+            setTutorialStep(prev => prev + 1);
+            setTutorialActionCompleted(false);
+          }} 
+          onSkip={() => setGameMode('normal')} 
+        />
+      )}
 
       {/* Top Bar: VP & Status - Compact */}
       <div className="px-3 pt-3 pb-1 z-10">
@@ -765,7 +1098,7 @@ export const CatanGame = ({ onUpdate, onMove, onEnd }: { onUpdate: (s: number) =
 
       {/* Game Board - Maximized */}
       <div className={`flex-1 relative overflow-hidden flex items-center justify-center transition-all ${activeAction ? 'bg-blue-50/30' : 'bg-sky-50/30'}`}>
-        <svg viewBox="0 0 300 300" className="w-full h-full max-h-[75vh] p-2">
+        <svg viewBox={boardBounds.viewBox} className="w-full h-full max-h-[75vh] p-2">
           {hexes.map(renderHex)}
         </svg>
 
@@ -881,7 +1214,7 @@ export const CatanGame = ({ onUpdate, onMove, onEnd }: { onUpdate: (s: number) =
                     return;
                   }
                   setActiveAction(activeAction === 'road' ? null : 'road');
-                  if (isTutorial && tutorialStep === 4) setTutorialStep(5);
+                  if (isTutorial && tutorialStep === 4) setTutorialActionCompleted(true);
                 }}
                 highlight={isTutorial && tutorialStep === 4}
                 hint={isTutorial && tutorialStep === 4 ? "Стройте путь" : ""}
@@ -898,7 +1231,7 @@ export const CatanGame = ({ onUpdate, onMove, onEnd }: { onUpdate: (s: number) =
                     return;
                   }
                   setActiveAction(activeAction === 'settlement' ? null : 'settlement');
-                  if (isTutorial && tutorialStep === 6) setTutorialStep(7);
+                  if (isTutorial && tutorialStep === 6) setTutorialActionCompleted(true);
                 }}
                 highlight={isTutorial && tutorialStep === 6}
                 hint={isTutorial && tutorialStep === 6 ? "Выберите дом" : ""}
@@ -1043,39 +1376,85 @@ export const CatanGame = ({ onUpdate, onMove, onEnd }: { onUpdate: (s: number) =
 
 // --- Subcomponents ---
 
-const TutorialOverlay = ({ step, onNext, onSkip }: { step: number, onNext: () => void, onSkip: () => void }) => {
-  const steps = [
-    { title: "Добро пожаловать!", text: "Это остров Катан. Гексы дают ресурсы, когда выпадают их числа." },
-    { title: "Бросок кубиков", text: "Нажмите кнопку внизу, чтобы начать ход и получить ресурсы." },
-    { title: "Ваши ресурсы", text: "Они появились в панели. Дерево и кирпич нужны для дорог." },
-    { title: "Строительство", text: "Нажмите 'Дорога', чтобы подготовиться к расширению." },
-    { title: "Размещение", text: "Выберите подсвеченную линию на поле, чтобы построить дорогу." },
-    { title: "Поселение", text: "Нажмите 'Дом' и выберите точку. Это дает +1 очко и ресурсы." },
-    { title: "Путь к победе", text: "Наберите 10 очков, строя дома (+1) и города (+2)." },
-    { title: "Конец хода", text: "Нажмите 'Конец', чтобы передать ход ботам. Удачи!" },
-  ];
+const TutorialOverlay = ({ step, onNext, onSkip, canProceed }: { step: number, onNext: () => void, onSkip: () => void, canProceed: boolean }) => {
+  const current = TUTORIAL_STEPS[step - 1] || TUTORIAL_STEPS[0];
+  const [showHint, setShowHint] = useState(false);
 
-  const current = steps[step - 1] || steps[0];
+  const handleNext = () => {
+    const isReady = canProceed || current.type === 'info' || current.type === 'victory';
+    if (isReady) {
+      onNext();
+      setShowHint(false);
+    } else {
+      setShowHint(true);
+      setTimeout(() => setShowHint(false), 3000);
+    }
+  };
 
   return (
-    <div className="fixed inset-x-4 bottom-32 z-[80] pointer-events-none">
+    <div className="fixed inset-x-4 bottom-28 z-[90] pointer-events-none">
       <motion.div 
         key={step}
-        initial={{ y: 20, opacity: 0 }}
+        initial={{ y: 50, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        className="bg-white/95 backdrop-blur-md rounded-[24px] p-4 shadow-2xl pointer-events-auto border-t-4 border-blue-500 max-w-sm mx-auto"
+        className="bg-white rounded-[28px] p-5 shadow-[0_20px_50px_rgba(0,0,0,0.2)] pointer-events-auto border-2 border-blue-500 max-w-sm mx-auto relative overflow-hidden"
       >
-        <div className="flex justify-between items-center mb-2">
-          <span className="text-[8px] font-black text-blue-600 uppercase tracking-widest">Обучение: Шаг {step} / 8</span>
-          <button onClick={onSkip} className="text-[8px] font-black text-slate-400 uppercase hover:text-slate-600">Пропустить</button>
+        <div className="absolute top-0 left-0 w-full h-1 bg-blue-500" />
+        
+        <div className="flex justify-between items-center mb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center text-[10px] font-bold text-white">
+              {step}
+            </div>
+            <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Шаг {step} из {TUTORIAL_STEPS.length}</span>
+          </div>
+          <button onClick={onSkip} className="text-[10px] font-bold text-slate-400 hover:text-red-500 transition-colors">Пропустить</button>
         </div>
-        <h3 className="text-sm font-black text-slate-900 mb-1 leading-tight">{current.title}</h3>
-        <p className="text-[10px] text-slate-500 mb-3 leading-relaxed">{current.text}</p>
-        {![2, 4, 5, 6, 7, 8].includes(step) && (
-          <Button onClick={onNext} className="w-full rounded-xl py-2 text-[10px] font-black uppercase tracking-widest bg-blue-600 hover:bg-blue-500 transition-transform active:scale-95">
-            {step === 8 ? "Понятно!" : "Далее"}
-          </Button>
+        
+        <h3 className="text-base font-black text-slate-900 mb-2 leading-tight">{current.title}</h3>
+        <p className="text-[11px] text-slate-600 mb-4 leading-relaxed font-medium">{current.text}</p>
+        
+        {current.reason && (
+          <div className="bg-blue-50/50 rounded-2xl p-3 mb-4 border border-blue-100/50 flex gap-3">
+            <div className="text-blue-500 shrink-0">
+              <Info className="w-4 h-4" />
+            </div>
+            <p className="text-[10px] text-blue-800 font-semibold leading-snug italic">
+              {current.reason}
+            </p>
+          </div>
         )}
+
+        <div className="relative pt-2">
+          <AnimatePresence>
+            {showHint && (
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 10 }}
+                className="absolute -top-12 left-0 right-0 bg-slate-900 text-white text-[10px] py-2 px-4 rounded-xl text-center font-bold shadow-xl z-10"
+              >
+                <div className="flex items-center justify-center gap-2">
+                  <Zap className="w-3 h-3 text-amber-400 animate-pulse" />
+                  Сначала выполните действие на поле!
+                </div>
+                <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-900 rotate-45" />
+              </motion.div>
+            )}
+          </AnimatePresence>
+          
+          <Button 
+            onClick={handleNext} 
+            className={`w-full rounded-2xl py-3.5 text-[11px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-lg flex items-center justify-center gap-2 ${
+              (canProceed || current.type === 'info' || current.type === 'victory') 
+                ? 'bg-blue-600 hover:bg-blue-500 shadow-blue-600/30 text-white' 
+                : 'bg-blue-600/40 text-white/70 cursor-not-allowed'
+            }`}
+          >
+            {step === TUTORIAL_STEPS.length ? "Играть самому!" : "Продолжить"}
+            <ArrowRight className={`w-4 h-4 transition-transform ${canProceed || current.type === 'info' || current.type === 'victory' ? 'translate-x-0' : 'opacity-50'}`} />
+          </Button>
+        </div>
       </motion.div>
     </div>
   );

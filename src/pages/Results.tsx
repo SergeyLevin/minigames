@@ -13,7 +13,7 @@ export const Results = () => {
   const { addCrystals } = useAppStore();
   
   const state = location.state || {};
-  const { gameId, score, duration } = state;
+  const { gameId, score, duration, metadata } = state;
   
   // Use passed breakdown or recalculate if missing (fallback)
   const breakdown = state.breakdown || calculateRewardBreakdown(gameId || 'match3', {
@@ -41,28 +41,29 @@ export const Results = () => {
         gameId: gameId || 'match3',
         score: score || 0,
         duration: duration || 0,
-        crystalsEarned: breakdown.total
+        crystalsEarned: breakdown.total,
+        metadata
       });
     }
-  }, [breakdown.total, gameId, score, duration, addCrystals]);
+  }, [breakdown.total, gameId, score, duration, addCrystals, metadata]);
 
 
   return (
     <div className="p-4 flex flex-col min-h-screen bg-[#F9FAFB] justify-center text-center pb-10">
       <div className="mb-10">
-        <div className={`w-28 h-28 ${isVictory ? 'bg-yellow-100' : 'bg-blue-100'} rounded-[40px] flex items-center justify-center mx-auto mb-6 shadow-xl shadow-blue-50`}>
-          <Trophy className={`w-14 h-14 ${isVictory ? 'text-yellow-600' : 'text-blue-600'}`} />
+        <div className={`w-28 h-28 ${isVictory ? 'bg-yellow-100' : (gameId === 'findpair' || gameId === 'crash' || gameId === 'brickbreaker' ? 'bg-red-100' : 'bg-blue-100')} rounded-[40px] flex items-center justify-center mx-auto mb-6 shadow-xl shadow-blue-50`}>
+          <Trophy className={`w-14 h-14 ${isVictory ? 'text-yellow-600' : (gameId === 'findpair' || gameId === 'crash' || gameId === 'brickbreaker' ? 'text-red-600' : 'text-blue-600')}`} />
         </div>
         <h1 className="text-3xl font-black mb-2">
-          {isVictory ? (gameId === 'match3' ? 'Блестящая победа!' : 'Победа!') : 'Игра завершена'}
+          {isVictory ? (gameId === 'match3' ? 'Блестящая победа!' : 'Победа!') : (gameId === 'crash' ? 'Упс! Crash!' : (gameId === 'brickbreaker' ? 'Игра окончена' : 'Игра завершена'))}
         </h1>
         <p className="text-gray-400 font-bold uppercase tracking-widest text-xs">
-          {gameId === 'match3' && isVictory ? 'Вы мастер кристаллов!' : 'Результаты партии'}
+          {gameId === 'crash' ? (isVictory ? `Коэффициент: ${metadata?.cashedOutAt?.toFixed(2)}x` : `Crash на ${metadata?.crashPoint?.toFixed(2)}x`) : (gameId === 'brickbreaker' ? `Разбито блоков: ${metadata?.bricksDestroyed || 0}` : (gameId === 'match3' && isVictory ? 'Вы мастер кристаллов!' : 'Результаты партии'))}
         </p>
       </div>
 
-      <Card className="mb-8 p-0 border-blue-100 bg-white overflow-hidden shadow-xl shadow-blue-50/50">
-        <div className="bg-blue-600 p-8 text-white">
+      <Card className={`mb-8 p-0 border-blue-100 bg-white overflow-hidden shadow-xl shadow-blue-50/50`}>
+        <div className={`${((gameId === 'findpair' || gameId === 'crash' || gameId === 'brickbreaker') && !isVictory) ? 'bg-red-600' : 'bg-blue-600'} p-8 text-white`}>
           <p className="text-xs font-black uppercase tracking-widest opacity-70 mb-2">Итоговая награда</p>
           <div className="flex items-center justify-center gap-2 text-5xl font-black">
             <Sparkles className="w-10 h-10 text-yellow-300" />
@@ -71,30 +72,62 @@ export const Results = () => {
         </div>
 
         <div className="p-6 space-y-4">
-          <div className="flex justify-between items-center text-sm font-bold">
-            <span className="text-gray-400 uppercase tracking-wider text-[10px]">Базовая награда</span>
-            <span className="text-gray-700">+{breakdown.base} 💎</span>
-          </div>
-          
-          {breakdown.victoryBonus > 0 && (
-            <div className="flex justify-between items-center text-sm font-bold">
-              <span className="text-gray-400 uppercase tracking-wider text-[10px]">Бонус за победу</span>
-              <span className="text-green-600">+{breakdown.victoryBonus} 💎</span>
-            </div>
-          )}
+          {gameId === 'crash' ? (
+            <>
+              <div className="flex justify-between items-center text-sm font-bold">
+                <span className="text-gray-400 uppercase tracking-wider text-[10px]">Ваша ставка</span>
+                <span className="text-gray-700">{metadata?.bet || 0} 💎</span>
+              </div>
+              <div className="flex justify-between items-center text-sm font-bold">
+                <span className="text-gray-400 uppercase tracking-wider text-[10px]">Коэффициент</span>
+                <span className={isVictory ? "text-emerald-600" : "text-red-500"}>
+                  {isVictory ? `${metadata?.cashedOutAt?.toFixed(2)}x` : '0.00x'}
+                </span>
+              </div>
+            </>
+          ) : gameId === 'brickbreaker' ? (
+            <>
+              <div className="flex justify-between items-center text-sm font-bold">
+                <span className="text-gray-400 uppercase tracking-wider text-[10px]">Разбито блоков</span>
+                <span className="text-gray-700">{metadata?.bricksDestroyed || 0}</span>
+              </div>
+              <div className="flex justify-between items-center text-sm font-bold">
+                <span className="text-gray-400 uppercase tracking-wider text-[10px]">Пройдено уровней</span>
+                <span className="text-gray-700">{metadata?.levelsCleared || 0}</span>
+              </div>
+              <div className="flex justify-between items-center text-sm font-bold">
+                <span className="text-gray-400 uppercase tracking-wider text-[10px]">Награда</span>
+                <span className="text-blue-600">+{breakdown.total} 💎</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex justify-between items-center text-sm font-bold">
+                <span className="text-gray-400 uppercase tracking-wider text-[10px]">Базовая награда</span>
+                <span className="text-gray-700">+{breakdown.base} 💎</span>
+              </div>
+              
+              {breakdown.victoryBonus > 0 && (
+                <div className="flex justify-between items-center text-sm font-bold">
+                  <span className="text-gray-400 uppercase tracking-wider text-[10px]">Бонус за победу</span>
+                  <span className="text-green-600">+{breakdown.victoryBonus} 💎</span>
+                </div>
+              )}
 
-          {breakdown.qualityBonus > 0 && (
-            <div className="flex justify-between items-center text-sm font-bold">
-              <span className="text-gray-400 uppercase tracking-wider text-[10px]">Бонус за качество</span>
-              <span className="text-blue-600">+{breakdown.qualityBonus} 💎</span>
-            </div>
-          )}
+              {(breakdown.qualityBonus > 0 || gameId === 'findpair') && (
+                <div className="flex justify-between items-center text-sm font-bold">
+                  <span className="text-gray-400 uppercase tracking-wider text-[10px]">Бонус за качество</span>
+                  <span className="text-blue-600">+{breakdown.qualityBonus} 💎</span>
+                </div>
+              )}
 
-          {breakdown.penalty > 0 && (
-            <div className="flex justify-between items-center text-sm font-bold">
-              <span className="text-gray-400 uppercase tracking-wider text-[10px]">Корректировка</span>
-              <span className="text-red-500">-{breakdown.penalty} 💎</span>
-            </div>
+              {breakdown.penalty > 0 && (
+                <div className="flex justify-between items-center text-sm font-bold">
+                  <span className="text-gray-400 uppercase tracking-wider text-[10px]">Корректировка</span>
+                  <span className="text-red-500">-{breakdown.penalty} 💎</span>
+                </div>
+              )}
+            </>
           )}
 
           {breakdown.message && (

@@ -55,12 +55,6 @@ export const Match3Game = ({ onUpdate, onMove, onEnd }: {
   const [shake, setShake] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   
-  const scoreRef = useRef(score);
-  const movesRef = useRef(moves);
-  
-  useEffect(() => { scoreRef.current = score; }, [score]);
-  useEffect(() => { movesRef.current = moves; }, [moves]);
-
   const idCounter = useRef(0);
   const generateId = () => `tile-${idCounter.current++}`;
 
@@ -163,11 +157,6 @@ export const Match3Game = ({ onUpdate, onMove, onEnd }: {
     initBoard();
   }, [initBoard]);
 
-  // Sync score with parent
-  useEffect(() => {
-    onUpdate(score);
-  }, [score, onUpdate]);
-
   const findMatches = (currentGrid: Tile[][]) => {
     const matches = new Set<string>();
     
@@ -219,6 +208,7 @@ export const Match3Game = ({ onUpdate, onMove, onEnd }: {
     const matches = findMatches(currentGrid);
     
     if (matches.length === 0) {
+      // Check if any moves are possible after stabilization
       if (!hasPossibleMoves(currentGrid)) {
         setMessage('Нет ходов — перемешиваем!');
         setTimeout(() => {
@@ -226,27 +216,29 @@ export const Match3Game = ({ onUpdate, onMove, onEnd }: {
           setGrid(shuffled);
           setMessage(null);
           setIsProcessing(false);
-        }, 1200);
+        }, 1500);
       } else {
         setIsProcessing(false);
       }
       
       setCombo(1);
       
-      if (scoreRef.current >= TARGET_SCORE) {
+      // Check game end conditions
+      if (score >= TARGET_SCORE) {
         confetti({
           particleCount: 150,
           spread: 70,
           origin: { y: 0.6 },
           colors: ['#007AFF', '#FF2D55', '#34C759', '#FFCC00', '#AF52DE']
         });
-        onEnd(scoreRef.current, movesRef.current, true, 1.0);
-      } else if (movesRef.current >= MAX_MOVES) {
-        onEnd(scoreRef.current, movesRef.current, false, Math.min(1, scoreRef.current / TARGET_SCORE));
+        onEnd(score, moves, true, 1.0);
+      } else if (moves >= MAX_MOVES) {
+        onEnd(score, moves, false, Math.min(1, score / TARGET_SCORE));
       }
       return;
     }
 
+    // 1. Remove matches
     const newGrid = currentGrid.map(row => row.map(tile => ({ ...tile })));
     matches.forEach(({ x, y }) => {
       const type = newGrid[y][x].type;
@@ -258,16 +250,22 @@ export const Match3Game = ({ onUpdate, onMove, onEnd }: {
       const midX = matches.reduce((acc, m) => acc + m.x, 0) / matches.length;
       const midY = matches.reduce((acc, m) => acc + m.y, 0) / matches.length;
       setComboText({ text: `Combo x${currentCombo}`, x: midX, y: midY });
-      setTimeout(() => setComboText(null), 600);
+      setTimeout(() => setComboText(null), 800);
       if (currentCombo > 2) triggerShake();
     }
 
+    // Calculate score
     const points = matches.length * 50 * currentCombo;
-    setScore(prev => prev + points);
+    setScore(prev => {
+      const next = prev + points;
+      onUpdate(next);
+      return next;
+    });
 
     setGrid([...newGrid]);
-    await new Promise(r => setTimeout(r, 250));
+    await new Promise(r => setTimeout(r, 200));
 
+    // 2. Gravity
     for (let x = 0; x < GRID_SIZE; x++) {
       let emptySpaces = 0;
       for (let y = GRID_SIZE - 1; y >= 0; y--) {
@@ -279,6 +277,7 @@ export const Match3Game = ({ onUpdate, onMove, onEnd }: {
           newGrid[y][x] = { id: '', type: -1, x, y };
         }
       }
+      // 3. Refill
       for (let i = 0; i < emptySpaces; i++) {
         const y = emptySpaces - 1 - i;
         newGrid[y][x] = {
@@ -291,9 +290,10 @@ export const Match3Game = ({ onUpdate, onMove, onEnd }: {
     }
 
     setGrid([...newGrid]);
-    await new Promise(r => setTimeout(r, 250));
+    await new Promise(r => setTimeout(r, 300));
     
-    await resolveBoard(newGrid, currentCombo + 1);
+    // 4. Recursive check for combos
+    resolveBoard(newGrid, currentCombo + 1);
   };
 
   const handleSwap = async (x1: number, y1: number, x2: number, y2: number) => {
@@ -305,11 +305,14 @@ export const Match3Game = ({ onUpdate, onMove, onEnd }: {
     const newGrid = grid.map(row => row.map(tile => ({ ...tile })));
     
     // Perform swap
-    const tile1 = newGrid[y1][x1];
-    const tile2 = newGrid[y2][x2];
+    const tempType = newGrid[y1][x1].type;
+    const tempId = newGrid[y1][x1].id;
     
-    newGrid[y1][x1] = { ...tile2, x: x1, y: y1 };
-    newGrid[y2][x2] = { ...tile1, x: x2, y: y2 };
+    newGrid[y1][x1].type = newGrid[y2][x2].type;
+    newGrid[y1][x1].id = newGrid[y2][x2].id;
+    
+    newGrid[y2][x2].type = tempType;
+    newGrid[y2][x2].id = tempId;
 
     setGrid([...newGrid]);
     await new Promise(r => setTimeout(r, 300));
@@ -322,10 +325,11 @@ export const Match3Game = ({ onUpdate, onMove, onEnd }: {
       setTimeout(() => setMessage(null), 1000);
       
       // Swap back
-      const bTile1 = newGrid[y1][x1];
-      const bTile2 = newGrid[y2][x2];
-      newGrid[y1][x1] = { ...bTile2, x: x1, y: y1 };
-      newGrid[y2][x2] = { ...bTile1, x: x2, y: y2 };
+      newGrid[y2][x2].type = newGrid[y1][x1].type;
+      newGrid[y2][x2].id = newGrid[y1][x1].id;
+      
+      newGrid[y1][x1].type = tempType;
+      newGrid[y1][x1].id = tempId;
       
       setGrid([...newGrid]);
       await new Promise(r => setTimeout(r, 300));
@@ -434,55 +438,49 @@ export const Match3Game = ({ onUpdate, onMove, onEnd }: {
         relative aspect-square w-full max-w-[360px] bg-slate-200/50 p-2 rounded-[32px] shadow-inner border border-white
         ${shake ? 'animate-shake' : ''}
       `}>
-        <div className="grid grid-cols-7 grid-rows-7 gap-1.5 h-full w-full relative">
-          {/* Background cells for interaction */}
-          {Array.from({ length: GRID_SIZE * GRID_SIZE }).map((_, i) => {
-            const x = i % GRID_SIZE;
-            const y = Math.floor(i / GRID_SIZE);
-            return (
-              <div 
-                key={`cell-${x}-${y}`}
-                className="aspect-square rounded-2xl bg-slate-300/10 cursor-pointer"
-                onTouchStart={(e) => handleTouchStart(e, x, y)}
-                onTouchEnd={(e) => handleTouchEnd(e, x, y)}
-                onClick={() => onTileClick(x, y)}
-              />
-            );
-          })}
-
-          {/* Tiles Layer */}
-          <AnimatePresence>
-            {grid.flat().filter(tile => tile.type !== -1).map((tile) => (
-              <motion.div
-                key={tile.id}
-                layout
-                initial={{ scale: 0, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.5, opacity: 0 }}
-                transition={{ 
-                  type: 'spring', 
-                  stiffness: 300, 
-                  damping: 25,
-                  mass: 0.5
-                }}
-                className={`
-                  absolute w-[calc((100%-6*0.375rem)/7)] h-[calc((100%-6*0.375rem)/7)]
-                  shadow-[0_4px_0_0_rgba(0,0,0,0.1)] pointer-events-none
-                  bg-gradient-to-br border-b-2 ${COLORS[tile.type]} ${SHAPES[tile.type]}
-                  ${selected?.x === tile.x && selected?.y === tile.y ? 'ring-4 ring-white scale-110 z-10 shadow-xl' : ''}
-                `}
-                style={{
-                  left: `calc(${tile.x} * (100% + 0.375rem) / 7)`,
-                  top: `calc(${tile.y} * (100% + 0.375rem) / 7)`,
-                }}
-              >
-                {/* Shine effect */}
-                <div className="absolute top-1 left-1.5 w-1/3 h-1/4 bg-white/40 rounded-full blur-[1px] rotate-[-15deg]" />
-                <div className="absolute bottom-1 right-1 w-1/4 h-1/4 bg-black/5 rounded-full blur-[2px]" />
-                <div className="absolute inset-0 border-t border-white/30 rounded-inherit" />
-              </motion.div>
-            ))}
-          </AnimatePresence>
+        <div className="grid grid-cols-7 gap-1.5 h-full w-full relative">
+          {grid.map((row, y) => row.map((tile, x) => (
+            <div 
+              key={`${x}-${y}`} 
+              className="relative aspect-square"
+              onTouchStart={(e) => handleTouchStart(e, x, y)}
+              onTouchEnd={(e) => handleTouchEnd(e, x, y)}
+              onClick={() => onTileClick(x, y)}
+            >
+              <AnimatePresence mode="popLayout">
+                {tile.type !== -1 && (
+                  <motion.div
+                    key={tile.id}
+                    layoutId={tile.id}
+                    initial={{ scale: 0, opacity: 0, y: -50 }}
+                    animate={{ scale: 1, opacity: 1, y: 0 }}
+                    exit={{ 
+                      scale: 1.4, 
+                      opacity: 0,
+                      filter: 'brightness(2)',
+                      transition: { duration: 0.2 }
+                    }}
+                    transition={{ 
+                      type: 'spring', 
+                      stiffness: 400, 
+                      damping: 20,
+                      mass: 0.8
+                    }}
+                    className={`
+                      absolute inset-0 m-0.5 shadow-[0_4px_0_0_rgba(0,0,0,0.1)] cursor-pointer
+                      bg-gradient-to-br border-b-2 ${COLORS[tile.type]} ${SHAPES[tile.type]}
+                      ${selected?.x === x && selected?.y === y ? 'ring-4 ring-white scale-110 z-10 shadow-xl' : ''}
+                    `}
+                  >
+                    {/* Shine effect */}
+                    <div className="absolute top-1 left-1.5 w-1/3 h-1/4 bg-white/40 rounded-full blur-[1px] rotate-[-15deg]" />
+                    <div className="absolute bottom-1 right-1 w-1/4 h-1/4 bg-black/5 rounded-full blur-[2px]" />
+                    <div className="absolute inset-0 border-t border-white/30 rounded-inherit" />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )))}
 
           {/* Particles Layer */}
           <div className="absolute inset-0 pointer-events-none overflow-visible">

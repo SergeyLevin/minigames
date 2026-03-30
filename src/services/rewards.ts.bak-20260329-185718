@@ -31,38 +31,6 @@ export const REWARD_CONFIGS: Record<string, RewardConfig> = {
     dailyLimit: 1500,
     minDurationSec: 120,
     minMoves: 15
-  },
-  'findpair': {
-    gameId: 'findpair',
-    baseReward: 20,
-    maxPerSession: 150,
-    dailyLimit: 1000,
-    minDurationSec: 15,
-    minMoves: 4
-  },
-  'stack': {
-    gameId: 'stack',
-    baseReward: 10,
-    maxPerSession: 200,
-    dailyLimit: 1200,
-    minDurationSec: 5,
-    minMoves: 1
-  },
-  'crash': {
-    gameId: 'crash',
-    baseReward: 0,
-    maxPerSession: 1500,
-    dailyLimit: 4500,
-    minDurationSec: 1,
-    minMoves: 0
-  },
-  'brickbreaker': {
-    gameId: 'brickbreaker',
-    baseReward: 10,
-    maxPerSession: 60,
-    dailyLimit: 600,
-    minDurationSec: 15,
-    minMoves: 5
   }
 };
 
@@ -72,7 +40,6 @@ export interface SessionMetrics {
   score: number;
   isVictory: boolean;
   qualityBonus?: number; // 0 to 1
-  difficulty?: 'easy' | 'medium' | 'hard';
 }
 
 export interface RewardBreakdown {
@@ -89,13 +56,6 @@ export const calculateRewardBreakdown = (gameId: string, metrics: SessionMetrics
   const durationSec = (Date.now() - metrics.startTime) / 1000;
   
   let base = config.baseReward;
-  
-  // Difficulty adjustment for FindPair
-  if (gameId === 'findpair' && metrics.difficulty) {
-    if (metrics.difficulty === 'medium') base *= 1.5;
-    if (metrics.difficulty === 'hard') base *= 2.5;
-  }
-
   let victoryBonus = 0;
   let qualityBonus = 0;
   let penalty = 0;
@@ -125,9 +85,6 @@ export const calculateRewardBreakdown = (gameId: string, metrics: SessionMetrics
       case 'match3': victoryBonus = 25; break; // Increased victory bonus
       case 'cashflow': victoryBonus = 50; break;
       case 'catan': victoryBonus = 80; break;
-      case 'findpair': 
-        victoryBonus = metrics.difficulty === 'hard' ? 60 : metrics.difficulty === 'medium' ? 40 : 20;
-        break;
     }
   }
 
@@ -137,64 +94,10 @@ export const calculateRewardBreakdown = (gameId: string, metrics: SessionMetrics
     case 'match3': qualityBonus = Math.floor(qBonusMultiplier * 30); break; // Increased quality bonus
     case 'cashflow': qualityBonus = Math.floor(qBonusMultiplier * 60); break;
     case 'catan': qualityBonus = Math.floor(qBonusMultiplier * 80); break;
-    case 'findpair': 
-      const maxQ = metrics.difficulty === 'hard' ? 70 : metrics.difficulty === 'medium' ? 45 : 25;
-      qualityBonus = Math.floor(qBonusMultiplier * maxQ); 
-      break;
   }
 
   let total = Math.max(0, base + victoryBonus + qualityBonus - penalty);
   total = Math.min(total, config.maxPerSession);
-
-  // Special logic for FindPair: 0 on loss, fixed on win
-  if (gameId === 'findpair') {
-    if (!metrics.isVictory) {
-      total = 0;
-      base = 0;
-      qualityBonus = 0;
-      victoryBonus = 0;
-    } else {
-      // Fixed rewards for victory
-      total = metrics.difficulty === 'hard' ? 180 : metrics.difficulty === 'medium' ? 100 : 50;
-    }
-  }
-
-  // Special logic for Stack: reward depends on height (score)
-  if (gameId === 'stack') {
-    const height = metrics.score;
-    if (height < 5) total = 10;
-    else if (height < 10) total = 30;
-    else if (height < 20) total = 80;
-    else total = 150 + (height - 20) * 5; // Scaling after 20
-
-    // Ensure it doesn't exceed max
-    total = Math.min(total, config.maxPerSession);
-    
-    // Set breakdown parts for UI consistency
-    base = total;
-    qualityBonus = 0;
-    victoryBonus = 0;
-  }
-
-  // Special logic for Crash: score IS the reward
-  if (gameId === 'crash') {
-    total = metrics.score;
-    base = total;
-    qualityBonus = 0;
-    victoryBonus = 0;
-  }
-
-  // Special logic for Brick Breaker: reward depends on score (bricks destroyed)
-  if (gameId === 'brickbreaker') {
-    const bricks = Math.floor(metrics.score / 10);
-    const levels = metrics.qualityBonus || 0; // levelsCleared passed as qualityBonus
-    
-    total = Math.min(config.maxPerSession, 5 + bricks * 0.5 + levels * 10);
-    
-    base = Math.floor(bricks * 0.5);
-    victoryBonus = levels * 10;
-    qualityBonus = 5;
-  }
 
   return {
     base,
